@@ -42,6 +42,7 @@ async function confirmAdmin(user) {
   }
   setSignedIn(true);
   await loadProducts();
+  await loadVisitorStats(); // <--- CARGA LAS ESTADÍSTICAS AL ENTRAR
   return true;
 }
 
@@ -56,6 +57,60 @@ async function loadProducts() {
   productsById = new Map(data.map((product) => [product.id, product]));
   document.querySelector("#product-count").textContent = `${data.length} en total`;
   productList.replaceChildren(...data.map(makeAdminProduct));
+}
+
+// NUEVA FUNCIÓN: Cargar las estadísticas de visitas por día desde Supabase
+async function loadVisitorStats() {
+  const statsContainer = document.getElementById('stats-container');
+  if (!statsContainer) return;
+
+  statsContainer.innerHTML = '<p>Cargando estadísticas...</p>';
+
+  const { data, error } = await client
+    .from('page_views')
+    .select('date')
+    .order('date', { ascending: false });
+
+  if (error) {
+    statsContainer.innerHTML = '<p>Error al cargar las estadísticas.</p>';
+    console.error(error);
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    statsContainer.innerHTML = '<p>Aún no hay visitas registradas.</p>';
+    return;
+  }
+
+  // Agrupar visitas por fecha
+  const countsByDate = data.reduce((acc, row) => {
+    acc[row.date] = (acc[row.date] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Construir la tabla de estadísticas
+  let html = `
+    <table style="width:100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem;">
+      <thead>
+        <tr style="border-bottom: 2px solid #eee; text-align: left;">
+          <th style="padding: 10px;">Fecha</th>
+          <th style="padding: 10px;">Usuarios / Visitas</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  for (const [date, count] of Object.entries(countsByDate)) {
+    html += `
+      <tr style="border-bottom: 1px solid #f0f0f0;">
+        <td style="padding: 10px;">${date}</td>
+        <td style="padding: 10px; font-weight: bold; color: var(--rose, #bd746e);">${count}</td>
+      </tr>
+    `;
+  }
+
+  html += `</tbody></table>`;
+  statsContainer.innerHTML = html;
 }
 
 function makeAdminProduct(product) {
